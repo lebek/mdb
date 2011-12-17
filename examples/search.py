@@ -33,6 +33,7 @@ if __name__ == "__main__":
 
     t = BasicTask(pid)
     t.attach()
+    print t.basicInfo()
     for pos, r in enumerate(t.iterRegions()):
         print "Scanning region #%d @ 0x%0.2X of size %d..." % (
             pos, r.address, r.size)
