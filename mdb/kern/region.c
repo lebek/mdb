@@ -1,4 +1,12 @@
-#include "py_mdb.h"
+#include <Python.h>
+
+#include <mach/mach.h>
+#include <mach/mach_traps.h>
+#include <mach/mach_types.h>
+
+#include "util.h"
+#include "task.h"
+#include "region.h"
 
 static void
 Region_dealloc(mdb_Region *self)
@@ -92,10 +100,10 @@ static PyMemberDef Region_members[] = {
 static PyObject *
 Region_read (mdb_Region *self, PyObject *args, PyObject *kwds)
 {
+    kern_return_t kr;
     unsigned char *buf;
     uint64_t offset = 0;
     uint64_t buf_size = self->size;
-    int ret;
 
     static char *kwlist[] = {"offset", "size", NULL};
     if (! PyArg_ParseTupleAndKeywords(args, kwds, "|KK", kwlist,
@@ -107,9 +115,12 @@ Region_read (mdb_Region *self, PyObject *args, PyObject *kwds)
 
     /* XXX TODO check `task` not none */
 
-    ret = mdb_read_memory( ( (mdb_Task *)self->task)->port,
-                           (self->address + offset),
-                           &buf_size, &buf);
+    buf = (unsigned char *) malloc((size_t) buf_size);
+
+    kr = vm_read_overwrite( ( (mdb_Task *)self->task)->port,
+                            (vm_address_t) (self->address + offset),
+                            (vm_size_t) buf_size,
+                            (vm_address_t) buf, (vm_size_t *) &buf_size);
 
     return PyString_FromStringAndSize((const char *) buf,
                                       (Py_ssize_t) buf_size);

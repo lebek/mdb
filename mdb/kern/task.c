@@ -1,5 +1,12 @@
-#include "mdb.h"
-#include "py_mdb.h"
+#include <Python.h>
+
+#include <mach/mach.h>
+#include <mach/mach_traps.h>
+#include <mach/mach_types.h>
+
+#include "util.h"
+#include "region.h"
+#include "task.h"
 
 static void
 Task_dealloc (mdb_Task* self)
@@ -45,10 +52,11 @@ static PyMemberDef Task_members[] = {
 static PyObject *
 Task_attach (mdb_Task* self)
 {
-    int ret;
+    kern_return_t kr = task_for_pid(mach_task_self(), (pid_t) self->pid,
+                                    &(self->port));
 
-    if ( (ret = mdb_get_port(self->pid, &(self->port))) != KERN_SUCCESS) {
-        handle_kern_rtn(ret);
+    if (kr != KERN_SUCCESS) {
+        handle_kern_rtn(kr);
         return NULL;
     }
 
@@ -63,13 +71,15 @@ Task_attach (mdb_Task* self)
 static PyObject *
 Task_findRegion (mdb_Task *self, PyObject *args, PyObject *kwds)
 {
-    uint64_t address;
-    uint64_t size;
+    vm_address_t address;
+    vm_size_t size;
+
+    kern_return_t kr;
+    mach_port_t object;
     vm_region_basic_info_data_64_t info;
+    mach_msg_type_number_t info_count = VM_REGION_BASIC_INFO_COUNT_64;
 
     mdb_Region *region;
-
-    int ret;
 
     static char *kwlist[] = {"address", NULL};
 
@@ -77,81 +87,77 @@ Task_findRegion (mdb_Task *self, PyObject *args, PyObject *kwds)
                                       &address))
         return NULL;
 
-    if (self->attached) {
-
-        ret = mdb_get_region(self->port, &address, &size, &info);
-
-        /* XXX TODO should kernel return codes and structs even
-         * be visible at this level? */
-        if (ret != KERN_SUCCESS) {
-            return Py_None;
-        }
-
-        region = PyObject_New(mdb_Region, &mdb_RegionType);
-        if (region == NULL)
-            return NULL;
-
-        region->address = address;
-        region->size = size;
-
-        region->protection = (int) info.protection;
-        region->maxProtection = (int) info.max_protection;
-        region->inheritance = (int) info.inheritance;
-        region->shared = (char) info.shared;
-        region->reserved = (char) info.reserved;
-        region->behavior = (int) info.behavior;
-
-        Py_INCREF(self);
-        region->task = (PyObject *) self;
-
-        return (PyObject *) region;
-
-    } else {
+    if (! self->attached) {
         PyErr_SetString(PyExc_RuntimeError, "not attached");
         return NULL;
     }
+
+    kr = vm_region_64(self->port, &address, &size, VM_REGION_BASIC_INFO,
+                      (vm_region_info_t) &info, &info_count, &object);
+
+    if (kr != KERN_SUCCESS)
+        return Py_None;
+
+    region = PyObject_New(mdb_Region, &mdb_RegionType);
+    if (region == NULL)
+        return NULL;
+
+    region->address = address;
+    region->size = size;
+
+    region->protection = (int) info.protection;
+    region->maxProtection = (int) info.max_protection;
+    region->inheritance = (int) info.inheritance;
+    region->shared = (char) info.shared;
+    region->reserved = (char) info.reserved;
+    region->behavior = (int) info.behavior;
+
+    Py_INCREF(self);
+    region->task = (PyObject *) self;
+
+    return (PyObject *) region;
 }
 
 static PyObject *
 Task_basicInfo (mdb_Task *self)
 {
-    int ret;
+    kern_return_t kr;
     task_basic_info_data_t info;
+    mach_msg_type_number_t info_count = TASK_BASIC_INFO_COUNT;
 
-    if (self->attached) {
-        ret = mdb_get_info(self->port, &info);
-        printf("%d\n", ret);
-
-        /* NOTE
-         *
-         * struct task_basic_info
-         * {
-         *  integer_t      suspend_count;
-         *  vm_size_t       virtual_size;
-         *  vm_size_t      resident_size;
-         *  time_value_t       user_time;
-         *  time_value_t     system_time;
-         *  policy_t              policy;
-         * };
-         *
-         * struct time_value {
-         *  integer_t seconds;
-         *  integer_t microseconds;
-         * };
-         */
-
-        return Py_BuildValue("(KKK(KK)(KK))",
-                             (uint64_t) info.suspend_count,
-                             (uint64_t) info.virtual_size,
-                             (uint64_t) info.resident_size,
-                             (uint64_t) info.user_time.seconds,
-                             (uint64_t) info.user_time.microseconds,
-                             (uint64_t) info.system_time.seconds,
-                             (uint64_t) info.system_time.microseconds);
-    } else {
+    if (! self->attached) {
         PyErr_SetString(PyExc_RuntimeError, "not attached");
         return NULL;
     }
+
+    kr  = task_info(self->port, TASK_BASIC_INFO_64, (task_info_t) &info, &info_count);
+
+    /* NOTE
+     *
+     * struct task_basic_info
+     * {
+     *  integer_t      suspend_count;
+     *  vm_size_t       virtual_size;
+     *  vm_size_t      resident_size;
+     *  time_value_t       user_time;
+     *  time_value_t     system_time;
+     *  policy_t              policy;
+     * };
+     *
+     * struct time_value {
+     *  integer_t seconds;
+     *  integer_t microseconds;
+     * };
+     */
+
+    return Py_BuildValue("(KKK(KK)(KK))",
+                         (uint64_t) info.suspend_count,
+                         (uint64_t) info.virtual_size,
+                         (uint64_t) info.resident_size,
+                         (uint64_t) info.user_time.seconds,
+                         (uint64_t) info.user_time.microseconds,
+                         (uint64_t) info.system_time.seconds,
+                         (uint64_t) info.system_time.microseconds);
 }
 
 static PyMethodDef Task_methods[] = {

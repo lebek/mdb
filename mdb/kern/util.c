@@ -1,4 +1,6 @@
-#include "py_mdb.h"
+#include <Python.h>
+
+#include "util.h"
 
 void
 handle_kern_rtn(kern_return_t kr)
@@ -155,7 +157,7 @@ handle_kern_rtn(kern_return_t kr)
         { 0, NULL }
     };
 
-    const char *msg = "Kernel error";
+    const char *msg = "Kernel error.";
 
     for (msgp = msgs; msgp->msg; msgp++) {
 

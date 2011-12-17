@@ -1,4 +1,7 @@
-#include "py_mdb.h"
+#include <Python.h>
+
+#include "task.h"
+#include "region.h"
 
 static PyMethodDef kern_methods[] = {
 	{ NULL } /* Sentinel */
