@@ -48,7 +48,7 @@ Task_attach (mdb_Task* self)
 	int ret;
 
 	if ( (ret = mdb_get_port(self->pid, &(self->port))) != KERN_SUCCESS) {
-		PyErr_SetString(PyExc_RuntimeError, "failed to attach");
+        handle_kern_rtn(ret);
 		return NULL;
 	}
 

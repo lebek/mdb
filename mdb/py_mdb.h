@@ -30,3 +30,5 @@ typedef struct
 	char reserved;
 	int behavior;
 } mdb_Region;
+
+void handle_kern_rtn(kern_return_t kr);

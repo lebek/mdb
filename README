@@ -2,7 +2,7 @@ $ git clone git@github.com:lebek/mdb.git && cd mdb/
 $ sudo python setup.py install
 
 Either run mdb scripts as root or make python sgid procmod. I created a new
-python executable for this purpose to minimize the security downgrade:
+python executable for this purpose to contain the security downgrade:
 
 $ sudo cp /usr/bin/python /usr/bin/pyprocmod
 $ sudo cp /usr/bin/python2.7 /usr/bin/pyprocmod2.7
