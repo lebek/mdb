@@ -31,13 +31,13 @@
 
 #include "structmember.h"
 
-extern PyTypeObject mdb_TaskType;
+extern PyTypeObject kern_TaskType;
 
 typedef struct {
     PyObject_HEAD
     int pid;
     char attached;
     mach_port_t port;
-} mdb_Task;
+} kern_TaskObj;
 
 #endif

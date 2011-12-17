@@ -42,17 +42,17 @@ initkern(void)
 {
     PyObject* m;
 
-    if (PyType_Ready(&mdb_TaskType) < 0)
+    if (PyType_Ready(&kern_TaskType) < 0)
         return;
 
-    if (PyType_Ready(&mdb_RegionType) < 0)
+    if (PyType_Ready(&kern_RegionType) < 0)
         return;
 
     m = Py_InitModule3("mdb.kern", kern_methods,
                        "Kernel module.");
-    Py_INCREF(&mdb_TaskType);
-    Py_INCREF(&mdb_RegionType);
+    Py_INCREF(&kern_TaskType);
+    Py_INCREF(&kern_RegionType);
 
-    PyModule_AddObject(m, "Task", (PyObject *)&mdb_TaskType);
-    PyModule_AddObject(m, "Region", (PyObject *)&mdb_RegionType);
+    PyModule_AddObject(m, "Task", (PyObject *)&kern_TaskType);
+    PyModule_AddObject(m, "Region", (PyObject *)&kern_RegionType);
 }

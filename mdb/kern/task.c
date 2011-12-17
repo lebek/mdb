@@ -34,49 +34,14 @@
 #include "region.h"
 #include "task.h"
 
-static void
-Task_dealloc (mdb_Task* self)
-{
-    self->ob_type->tp_free( (PyObject*) self);
-}
-
+/*
+ * Attach to the task
+ *
+ * Arguments: None
+ * Returns:   None
+ */
 static PyObject *
-Task_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
-{
-    mdb_Task *self;
-
-    self = (mdb_Task *) type->tp_alloc(type, 0);
-
-    if (self != NULL) {
-        self->pid = 0;
-        self->attached = 0;
-    }
-
-    return (PyObject *) self;
-}
-
-static int
-Task_init (mdb_Task *self, PyObject *args, PyObject *kwds)
-{
-    static char *kwlist[] = {"pid", NULL};
-
-    if (! PyArg_ParseTupleAndKeywords(args, kwds, "i", kwlist,
-                                      &self->pid))
-        return -1;
-
-    return 0;
-}
-
-static PyMemberDef Task_members[] = {
-    {"pid", T_INT, offsetof(mdb_Task, pid), 0,
-     "Task pid"},
-    {"attached", T_BOOL, offsetof(mdb_Task, attached), 0,
-     "Attachment status"},
-    {NULL} /* Sentinel */
-};
-
-static PyObject *
-Task_attach (mdb_Task* self)
+kern_Task_attach (kern_TaskObj* self)
 {
     kern_return_t kr = task_for_pid(mach_task_self(), (pid_t) self->pid,
                                     &(self->port));
@@ -92,10 +57,13 @@ Task_attach (mdb_Task* self)
 }
 
 /*
- * `address` - the address at which to start looking for a region
+ * Find a memory region in the task's address space
+ *
+ * Arguments: address - the address at which to start looking for a region
+ * Returns: Region object, or None if no region is found
  */
 static PyObject *
-Task_findRegion (mdb_Task *self, PyObject *args, PyObject *kwds)
+kern_Task_findRegion (kern_TaskObj *self, PyObject *args, PyObject *kwds)
 {
     vm_address_t address;
     vm_size_t size;
@@ -105,7 +73,7 @@ Task_findRegion (mdb_Task *self, PyObject *args, PyObject *kwds)
     vm_region_basic_info_data_64_t info;
     mach_msg_type_number_t info_count = VM_REGION_BASIC_INFO_COUNT_64;
 
-    mdb_Region *region;
+    kern_RegionObj *region;
 
     static char *kwlist[] = {"address", NULL};
 
@@ -124,7 +92,7 @@ Task_findRegion (mdb_Task *self, PyObject *args, PyObject *kwds)
     if (kr != KERN_SUCCESS)
         return Py_None;
 
-    region = PyObject_New(mdb_Region, &mdb_RegionType);
+    region = PyObject_New(kern_RegionObj, &kern_RegionType);
     if (region == NULL)
         return NULL;
 
@@ -144,8 +112,16 @@ Task_findRegion (mdb_Task *self, PyObject *args, PyObject *kwds)
     return (PyObject *) region;
 }
 
+/*
+ * Get basic information about the task, such as the task's suspend count and
+ * number of resident pages
+ *
+ * Arguments: None
+ * Returns:   (suspend_count, virtual_size, resident_size, user_time,
+ *             system_time)
+ */
 static PyObject *
-Task_basicInfo (mdb_Task *self)
+kern_Task_basicInfo (kern_TaskObj *self)
 {
     kern_return_t kr;
     task_basic_info_data_t info;
@@ -158,24 +134,6 @@ Task_basicInfo (mdb_Task *self)
 
     kr  = task_info(self->port, TASK_BASIC_INFO_64, (task_info_t) &info, &info_count);
 
-    /* NOTE
-     *
-     * struct task_basic_info
-     * {
-     *  integer_t      suspend_count;
-     *  vm_size_t       virtual_size;
-     *  vm_size_t      resident_size;
-     *  time_value_t       user_time;
-     *  time_value_t     system_time;
-     *  policy_t              policy;
-     * };
-     *
-     * struct time_value {
-     *  integer_t seconds;
-     *  integer_t microseconds;
-     * };
-     */
-
     return Py_BuildValue("(KKK(KK)(KK))",
                          (uint64_t) info.suspend_count,
                          (uint64_t) info.virtual_size,
@@ -186,23 +144,64 @@ Task_basicInfo (mdb_Task *self)
                          (uint64_t) info.system_time.microseconds);
 }
 
-static PyMethodDef Task_methods[] = {
-    {"attach", (PyCFunction)Task_attach, METH_NOARGS,
+static void
+kern_Task_dealloc (kern_TaskObj* self)
+{
+    self->ob_type->tp_free( (PyObject*) self);
+}
+
+static PyObject *
+kern_Task_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+    kern_TaskObj *self;
+
+    self = (kern_TaskObj *) type->tp_alloc(type, 0);
+
+    if (self != NULL) {
+        self->pid = 0;
+        self->attached = 0;
+    }
+
+    return (PyObject *) self;
+}
+
+static int
+kern_Task_init (kern_TaskObj *self, PyObject *args, PyObject *kwds)
+{
+    static char *kwlist[] = {"pid", NULL};
+
+    if (! PyArg_ParseTupleAndKeywords(args, kwds, "i", kwlist,
+                                      &self->pid))
+        return -1;
+
+    return 0;
+}
+
+static PyMemberDef kern_TaskMembers[] = {
+    {"pid", T_INT, offsetof(kern_TaskObj, pid), 0,
+     "Task pid"},
+    {"attached", T_BOOL, offsetof(kern_TaskObj, attached), 0,
+     "Attachment status"},
+    {NULL} /* Sentinel */
+};
+
+static PyMethodDef kern_TaskMethods[] = {
+    {"attach", (PyCFunction)kern_Task_attach, METH_NOARGS,
      "Attach to this task"},
-    {"findRegion", (PyCFunction)Task_findRegion, METH_KEYWORDS,
+    {"findRegion", (PyCFunction)kern_Task_findRegion, METH_KEYWORDS,
      "Return memory region in this tasks address space"},
-    {"basicInfo", (PyCFunction)Task_basicInfo, METH_NOARGS,
+    {"basicInfo", (PyCFunction)kern_Task_basicInfo, METH_NOARGS,
      "Return basic information about the task"},
     {NULL} /* Sentinel */
 };
 
-PyTypeObject mdb_TaskType= {
+PyTypeObject kern_TaskType = {
     PyObject_HEAD_INIT(NULL)
     0,                         /* ob_size */
     "mdb.kern.Task",           /* tp_name */
-    sizeof(mdb_Task),          /* tp_basicsize */
+    sizeof(kern_TaskObj),      /* tp_basicsize */
     0,                         /* tp_itemsize */
-    (destructor)Task_dealloc,  /* tp_dealloc */
+    (destructor)kern_Task_dealloc, /* tp_dealloc */
     0,                         /* tp_print */
     0,                         /* tp_getattr */
     0,                         /* tp_setattr */
@@ -225,15 +224,15 @@ PyTypeObject mdb_TaskType= {
     0,                         /* tp_weaklistoffset */
     0,                         /* tp_iter */
     0,                         /* tp_iternext */
-    Task_methods,              /* tp_methods */
-    Task_members,              /* tp_members */
+    kern_TaskMethods,          /* tp_methods */
+    kern_TaskMembers,          /* tp_members */
     0,                         /* tp_getset */
     0,                         /* tp_base */
     0,                         /* tp_dict */
     0,                         /* tp_descr_get */
     0,                         /* tp_descr_set */
     0,                         /* tp_dictoffset */
-    (initproc)Task_init,       /* tp_init */
+    (initproc)kern_Task_init,  /* tp_init */
     0,                         /* tp_alloc */
-    Task_new,                  /* tp_new */
+    kern_Task_new,             /* tp_new */
 };

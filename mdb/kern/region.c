@@ -34,19 +34,57 @@
 #include "task.h"
 #include "region.h"
 
+
+/*
+ * Read the specified range of the region
+ *
+ * Arguments: offset - the byte offset from region start at which to start the
+ *                     read, default = 0
+ *            size - the number of bytes to read, default = self->size
+ * Returns:   Byte string
+ */
+static PyObject *
+kern_Region_read (kern_RegionObj *self, PyObject *args, PyObject *kwds)
+{
+    kern_return_t kr;
+    unsigned char *buf;
+    uint64_t offset = 0;
+    uint64_t buf_size = self->size;
+
+    static char *kwlist[] = {"offset", "size", NULL};
+    if (! PyArg_ParseTupleAndKeywords(args, kwds, "|KK", kwlist,
+                                      &offset, &buf_size))
+        return NULL;
+
+    if (offset + buf_size > self->size)
+        buf_size = self->size - offset;
+
+    /* XXX TODO check `task` not none */
+
+    buf = (unsigned char *) malloc((size_t) buf_size);
+
+    kr = vm_read_overwrite( ( (kern_TaskObj *)self->task)->port,
+                            (vm_address_t) (self->address + offset),
+                            (vm_size_t) buf_size,
+                            (vm_address_t) buf, (vm_size_t *) &buf_size);
+
+    return PyString_FromStringAndSize((const char *) buf,
+                                      (Py_ssize_t) buf_size);
+}
+
 static void
-Region_dealloc(mdb_Region *self)
+kern_Region_dealloc(kern_RegionObj *self)
 {
     Py_XDECREF(self->task);
     self->ob_type->tp_free( (PyObject*) self);
 }
 
 static PyObject *
-Region_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
+kern_Region_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-    mdb_Region *self;
+    kern_RegionObj *self;
 
-    self = (mdb_Region *) type->tp_alloc(type, 0);
+    self = (kern_RegionObj *) type->tp_alloc(type, 0);
 
     if (self != NULL) {
         self->address = 0;
@@ -69,9 +107,8 @@ Region_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
     return (PyObject *) self;
 }
 
-/* Necessary? */
 static int
-Region_init (mdb_Region *self, PyObject *args, PyObject *kwds)
+kern_Region_init (kern_RegionObj *self, PyObject *args, PyObject *kwds)
 {
     PyObject *task = NULL, *tmp;
 
@@ -92,79 +129,41 @@ Region_init (mdb_Region *self, PyObject *args, PyObject *kwds)
     return 0;
 }
 
-static PyMemberDef Region_members[] = {
-    {"task", T_OBJECT_EX, offsetof(mdb_Region, task), 0,
+static PyMemberDef kern_RegionMembers[] = {
+    {"task", T_OBJECT_EX, offsetof(kern_RegionObj, task), 0,
      "Task containing this region"},
-    {"address", T_ULONGLONG, offsetof(mdb_Region, address), 0,
+    {"address", T_ULONGLONG, offsetof(kern_RegionObj, address), 0,
      "Region start address"},
-    {"size", T_ULONGLONG, offsetof(mdb_Region, size), 0,
+    {"size", T_ULONGLONG, offsetof(kern_RegionObj, size), 0,
      "Region size"},
-    {"protection", T_INT, offsetof(mdb_Region, protection), 0,
+    {"protection", T_INT, offsetof(kern_RegionObj, protection), 0,
      "The current protection for this region"},
-    {"maxProtection", T_INT, offsetof(mdb_Region, maxProtection), 0,
+    {"maxProtection", T_INT, offsetof(kern_RegionObj, maxProtection), 0,
      "The maximum protection allowed for this region"},
-    {"inheritance", T_INT, offsetof(mdb_Region, inheritance), 0,
+    {"inheritance", T_INT, offsetof(kern_RegionObj, inheritance), 0,
      "The inheritance attribute for this region"},
-    {"shared", T_BOOL, offsetof(mdb_Region, shared), 0,
+    {"shared", T_BOOL, offsetof(kern_RegionObj, shared), 0,
      "If true, this region is shared by another task"},
-    {"reserved", T_BOOL, offsetof(mdb_Region, reserved), 0,
-      "If true this region is protected from random allocation"},
-    {"behavior", T_INT, offsetof(mdb_Region, behavior), 0,
+    {"reserved", T_BOOL, offsetof(kern_RegionObj, reserved), 0,
+     "If true this region is protected from random allocation"},
+    {"behavior", T_INT, offsetof(kern_RegionObj, behavior), 0,
      "Expected reference pattern for the memory"},
     {NULL} /* Sentinel */
 };
 
-/*
- * `offset`
- *  the byte offset from region start at which to start the read
- *  default = 0
- *
- * `size`
- *  the number of bytes to read
- *  default = self->size
- */
-static PyObject *
-Region_read (mdb_Region *self, PyObject *args, PyObject *kwds)
-{
-    kern_return_t kr;
-    unsigned char *buf;
-    uint64_t offset = 0;
-    uint64_t buf_size = self->size;
-
-    static char *kwlist[] = {"offset", "size", NULL};
-    if (! PyArg_ParseTupleAndKeywords(args, kwds, "|KK", kwlist,
-                                      &offset, &buf_size))
-        return NULL;
-
-    if (offset + buf_size > self->size)
-        buf_size = self->size - offset;
-
-    /* XXX TODO check `task` not none */
-
-    buf = (unsigned char *) malloc((size_t) buf_size);
-
-    kr = vm_read_overwrite( ( (mdb_Task *)self->task)->port,
-                            (vm_address_t) (self->address + offset),
-                            (vm_size_t) buf_size,
-                            (vm_address_t) buf, (vm_size_t *) &buf_size);
-
-    return PyString_FromStringAndSize((const char *) buf,
-                                      (Py_ssize_t) buf_size);
-}
-
-static PyMethodDef Region_methods[] = {
-    {"read", (PyCFunction)Region_read, METH_KEYWORDS,
+static PyMethodDef kern_RegionMethods[] = {
+    {"read", (PyCFunction)kern_Region_read, METH_KEYWORDS,
      "Read bytes in this region"},
     {NULL} /* Sentinel */
 };
 
-PyTypeObject mdb_RegionType = {
+PyTypeObject kern_RegionType = {
     PyObject_HEAD_INIT(NULL)
     0,                         /* ob_size */
     "mdb.kern.Region",         /* tp_name */
-    sizeof(mdb_Region),        /* tp_basicsize */
+    sizeof(kern_RegionObj),    /* tp_basicsize */
     0,                         /* tp_itemsize */
-    (destructor)Region_dealloc, /* tp_dealloc */
+    (destructor)kern_Region_dealloc, /* tp_dealloc */
     0,                         /* tp_print */
     0,                         /* tp_getattr */
     0,                         /* tp_setattr */
@@ -187,15 +186,15 @@ PyTypeObject mdb_RegionType = {
     0,                         /* tp_weaklistoffset */
     0,                         /* tp_iter */
     0,                         /* tp_iternext */
-    Region_methods,            /* tp_methods */
-    Region_members,            /* tp_members */
+    kern_RegionMethods,        /* tp_methods */
+    kern_RegionMembers,        /* tp_members */
     0,                         /* tp_getset */
     0,                         /* tp_base */
     0,                         /* tp_dict */
     0,                         /* tp_descr_get */
     0,                         /* tp_descr_set */
     0,                         /* tp_dictoffset */
-    (initproc)Region_init,     /* tp_init */
+    (initproc)kern_Region_init, /* tp_init */
     0,                         /* tp_alloc */
-    Region_new,                /* tp_new */
+    kern_Region_new,           /* tp_new */
 };

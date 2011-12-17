@@ -31,7 +31,7 @@
 
 #include "structmember.h"
 
-extern PyTypeObject mdb_RegionType;
+extern PyTypeObject kern_RegionType;
 
 typedef struct {
     PyObject_HEAD
@@ -45,6 +45,6 @@ typedef struct {
 	char shared;
 	char reserved;
 	int behavior;
-} mdb_Region;
+} kern_RegionObj;
 
 #endif
