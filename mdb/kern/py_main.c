@@ -1,15 +1,15 @@
 #include "py_mdb.h"
 
-static PyMethodDef task_methods[] = {
+static PyMethodDef kern_methods[] = {
 	{ NULL } /* Sentinel */
 };
 
 
-#ifndef PyMODINIT_FUNC/* declarations for DLL import/export */
+#ifndef PyMODINIT_FUNC /* declarations for DLL import/export */
 #define PyMODINIT_FUNC void
 #endif
 PyMODINIT_FUNC
-initcore(void)
+initkern(void)
 {
     PyObject* m;
 
@@ -19,8 +19,8 @@ initcore(void)
     if (PyType_Ready(&mdb_RegionType) < 0)
         return;
 
-    m = Py_InitModule3("mdb.core", task_methods,
-                       "Mach Debugger module.");
+    m = Py_InitModule3("mdb.kern", kern_methods,
+                       "Kernel module.");
     Py_INCREF(&mdb_TaskType);
     Py_INCREF(&mdb_RegionType);
 

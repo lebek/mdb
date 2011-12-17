@@ -1,4 +1,4 @@
-from mdb.core import Task
+from mdb.kern import Task
 
 
 class BasicTask(Task):
