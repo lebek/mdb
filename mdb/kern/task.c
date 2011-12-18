@@ -146,8 +146,6 @@ kern_Task_basicInfo (kern_TaskObj *self)
                          (uint64_t) info.system_time.microseconds);
 }
 
-
-
 static void
 kern_Task_dealloc (kern_TaskObj* self)
 {

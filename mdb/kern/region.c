@@ -30,6 +30,9 @@
 #include <mach/mach_traps.h>
 #include <mach/mach_types.h>
 
+/* mach_vm_* routines appear to do the right thing in both 32 and 64-bit mode */
+#include <mach/mach_vm.h>
+
 #include "util.h"
 #include "task.h"
 #include "region.h"
@@ -60,14 +63,13 @@ kern_Region_read (kern_RegionObj *self, PyObject *args, PyObject *kwds)
     if (offset + buf_size > self->size)
         buf_size = self->size - offset;
 
-    /* XXX TODO check `task` not none */
-
     buf = (unsigned char *) malloc((size_t) buf_size);
 
-    kr = vm_read_overwrite( ( (kern_TaskObj *)self->task)->port,
-                            (vm_address_t) (self->address + offset),
-                            (vm_size_t) buf_size,
-                            (vm_address_t) buf, (vm_size_t *) &buf_size);
+    kr = mach_vm_read_overwrite( ( (kern_TaskObj *)self->task)->port,
+                                 (vm_address_t) (self->address + offset),
+                                 (vm_size_t) buf_size,
+                                 (vm_address_t) buf,
+                                 (mach_vm_size_t *) &buf_size);
 
     return PyString_FromStringAndSize((const char *) buf,
                                       (Py_ssize_t) buf_size);
@@ -86,7 +88,7 @@ static PyObject *
 kern_Region_write (kern_RegionObj *self, PyObject *args, PyObject *kwds)
 {
     kern_return_t kr;
-    PyObject *data;
+    PyObject *data = NULL;
     uint64_t data_size = 0;
     vm_address_t offset = 0;
     static char *kwlist[] = {"data", "offset", NULL};
@@ -95,14 +97,15 @@ kern_Region_write (kern_RegionObj *self, PyObject *args, PyObject *kwds)
                                       &PyString_Type, &data, &offset))
         return NULL;
 
-    data_size = (uint64_t) PyString_Size(data);
+    data_size = PyString_Size(data);
 
     if (offset + data_size > self->size)
         data_size = self->size - offset;
 
-    kr = vm_write( ( (kern_TaskObj *)self->task)->port, self->address + offset,
-                   (pointer_t) PyString_AsString(data),
-                   (mach_msg_type_number_t) data_size);
+    kr = mach_vm_write( ( (kern_TaskObj *)self->task)->port,
+                        self->address + offset,
+                        (pointer_t) PyString_AsString(data),
+                        (mach_msg_type_number_t) data_size);
 
     if (kr != KERN_SUCCESS) {
         handle_kern_rtn(kr);
@@ -153,11 +156,10 @@ kern_Region_init (kern_RegionObj *self, PyObject *args, PyObject *kwds)
     PyObject *task = NULL, *tmp;
 
     static char *kwlist[] = {"task", "address", "size", NULL};
-    if (! PyArg_ParseTupleAndKeywords(args, kwds, "OKK", kwlist, &task,
-                                      &self->address, &self->size))
+    if (! PyArg_ParseTupleAndKeywords(args, kwds, "O!KK", kwlist,
+                                      &kern_TaskType, &task, &self->address,
+                                      &self->size))
         return -1;
-
-    /* XXX TODO enforce type of `task` */
 
     if (task) {
         tmp = self->task;
