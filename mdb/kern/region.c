@@ -36,11 +36,12 @@
 
 
 /*
- * Read the specified range of the region
+ * Read the specified range of the region. The range is trimmed if it exceeds
+ * the size of the region
  *
- * Arguments: offset - the byte offset from region start at which to start the
+ * Arguments: offset - byte offset from region start at which to start the
  *                     read, default = 0
- *            size - the number of bytes to read, default = self->size
+ *            size - number of bytes to read, default = self->size
  * Returns:   Byte string
  */
 static PyObject *
@@ -70,6 +71,45 @@ kern_Region_read (kern_RegionObj *self, PyObject *args, PyObject *kwds)
 
     return PyString_FromStringAndSize((const char *) buf,
                                       (Py_ssize_t) buf_size);
+}
+
+/*
+ * Write data to the region at the specified offset. The data is trimmed if it
+ * exceeds the size of the region
+ *
+ * Arguments: data - byte string to write
+ *            offset - byte offset from region start at which to start the
+ *            write, default = 0
+ * Returns:   None
+ */
+static PyObject *
+kern_Region_write (kern_RegionObj *self, PyObject *args, PyObject *kwds)
+{
+    kern_return_t kr;
+    PyObject *data;
+    uint64_t data_size = 0;
+    vm_address_t offset = 0;
+    static char *kwlist[] = {"data", "offset", NULL};
+
+    if (! PyArg_ParseTupleAndKeywords(args, kwds, "O!|K", kwlist,
+                                      &PyString_Type, &data, &offset))
+        return NULL;
+
+    data_size = (uint64_t) PyString_Size(data);
+
+    if (offset + data_size > self->size)
+        data_size = self->size - offset;
+
+    kr = vm_write( ( (kern_TaskObj *)self->task)->port, self->address + offset,
+                   (pointer_t) PyString_AsString(data),
+                   (mach_msg_type_number_t) data_size);
+
+    if (kr != KERN_SUCCESS) {
+        handle_kern_rtn(kr);
+        return NULL;
+    }
+
+    return Py_None;
 }
 
 static void
@@ -154,6 +194,8 @@ static PyMemberDef kern_RegionMembers[] = {
 static PyMethodDef kern_RegionMethods[] = {
     {"read", (PyCFunction)kern_Region_read, METH_KEYWORDS,
      "Read bytes in this region"},
+    {"write", (PyCFunction)kern_Region_write, METH_KEYWORDS,
+     "Write bytes to this region"},
     {NULL} /* Sentinel */
 };
 
