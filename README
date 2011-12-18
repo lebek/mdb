@@ -12,3 +12,6 @@ $ sudo chmod g+s /usr/bin/pyprocmod
 Finally:
 
 $ cd examples/; pyprocmod search.py [pid] [string]
+
+
+TESTED ON OS X 10.7 W/ PYTHON 2.7
