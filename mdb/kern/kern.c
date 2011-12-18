@@ -28,6 +28,11 @@
 
 #include "task.h"
 #include "region.h"
+#include "kern.h"
+
+PyObject *kern_Error,
+         *kern_NotAttachedError,
+         *kern_KernelError;
 
 static PyMethodDef kern_methods[] = {
 	{ NULL } /* Sentinel */
@@ -55,4 +60,35 @@ initkern(void)
 
     PyModule_AddObject(m, "Task", (PyObject *)&kern_TaskType);
     PyModule_AddObject(m, "Region", (PyObject *)&kern_RegionType);
+
+
+    /*
+     * ADD_EXCEPTION(dict,name,base) expands to a correct Exception declaration,
+     * inserting mdb.kern.name into dict, derviving the exception from base.
+     *
+     * Adapted from PyOpenSSL.
+     */
+#define ADD_EXCEPTION(_name, _base)                                     \
+    do {                                                                \
+        kern_##_name = PyErr_NewException("mdb.kern."#_name, _base, NULL); \
+        if (kern_##_name == NULL)                                       \
+            return;                                                     \
+        Py_INCREF(kern_##_name);                                        \
+        if (PyModule_AddObject(m, #_name, kern_##_name) != 0)           \
+            return;                                                     \
+    } while (0)
+
+    kern_Error = PyErr_NewException("mdb.kern.Error", NULL, NULL);
+    if (kern_Error == NULL) {
+        return;
+    }
+
+    Py_INCREF(kern_Error);
+    if (PyModule_AddObject(m, "Error", kern_Error) != 0)
+        return;
+
+    ADD_EXCEPTION(NotAttachedError, kern_Error);
+    ADD_EXCEPTION(KernelError, kern_Error);
+#undef ADD_EXCEPTION
+
 }

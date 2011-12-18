@@ -31,6 +31,7 @@
 #include <mach/mach_types.h>
 
 #include "util.h"
+#include "kern.h"
 #include "region.h"
 #include "task.h"
 
@@ -60,7 +61,7 @@ kern_Task_attach (kern_TaskObj* self)
  * Find a memory region in the task's address space
  *
  * Arguments: address - the address at which to start looking for a region
- * Returns: Region object, or None if no region is found
+ * Returns:   Region object, or None if no region is found
  */
 static PyObject *
 kern_Task_findRegion (kern_TaskObj *self, PyObject *args, PyObject *kwds)
@@ -82,7 +83,7 @@ kern_Task_findRegion (kern_TaskObj *self, PyObject *args, PyObject *kwds)
         return NULL;
 
     if (! self->attached) {
-        PyErr_SetString(PyExc_RuntimeError, "not attached");
+        PyErr_SetNone(kern_NotAttachedError);
         return NULL;
     }
 
@@ -128,7 +129,7 @@ kern_Task_basicInfo (kern_TaskObj *self)
     mach_msg_type_number_t info_count = TASK_BASIC_INFO_COUNT;
 
     if (! self->attached) {
-        PyErr_SetString(PyExc_RuntimeError, "not attached");
+        PyErr_SetNone(kern_NotAttachedError);
         return NULL;
     }
 

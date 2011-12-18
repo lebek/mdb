@@ -26,6 +26,7 @@
 
 #include <Python.h>
 
+#include "kern.h"
 #include "util.h"
 
 void
@@ -193,5 +194,5 @@ handle_kern_rtn(kern_return_t kr)
         }
     }
 
-    PyErr_SetString(PyExc_RuntimeError, msg);
+    PyErr_SetString(kern_KernelError, msg);
 }
