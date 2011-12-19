@@ -75,7 +75,7 @@ kern_Task_findRegion (kern_TaskObj *self, PyObject *args, PyObject *kwds)
     vm_region_basic_info_data_64_t info;
     mach_msg_type_number_t info_count = VM_REGION_BASIC_INFO_COUNT_64;
 
-    kern_RegionObj *region;
+    kern_RegionObj *region = NULL;
 
     static char *kwlist[] = {"address", NULL};
 
@@ -91,7 +91,7 @@ kern_Task_findRegion (kern_TaskObj *self, PyObject *args, PyObject *kwds)
     kr = vm_region_64(self->port, &address, &size, VM_REGION_BASIC_INFO,
                       (vm_region_info_t) &info, &info_count, &object);
 
-    if (kr != KERN_SUCCESS)
+    if (kr == KERN_INVALID_ADDRESS)
         return Py_None;
 
     region = PyObject_New(kern_RegionObj, &kern_RegionType);
@@ -134,7 +134,13 @@ kern_Task_basicInfo (kern_TaskObj *self)
         return NULL;
     }
 
-    kr  = task_info(self->port, TASK_BASIC_INFO_64, (task_info_t) &info, &info_count);
+    kr  = task_info(self->port, TASK_BASIC_INFO_64, (task_info_t) &info,
+                    &info_count);
+
+    if (kr != KERN_SUCCESS) {
+        handle_kern_rtn(kr);
+        return NULL;
+    }
 
     return Py_BuildValue("(KKK(KK)(KK))",
                          (uint64_t) info.suspend_count,
@@ -155,7 +161,7 @@ kern_Task_dealloc (kern_TaskObj* self)
 static PyObject *
 kern_Task_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-    kern_TaskObj *self;
+    kern_TaskObj *self = NULL;
 
     self = (kern_TaskObj *) type->tp_alloc(type, 0);
 

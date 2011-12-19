@@ -64,12 +64,19 @@ kern_Region_read (kern_RegionObj *self, PyObject *args, PyObject *kwds)
         buf_size = self->size - offset;
 
     buf = (unsigned char *) malloc((size_t) buf_size);
+    if (buf == NULL)
+        return NULL;
 
     kr = mach_vm_read_overwrite( ( (kern_TaskObj *)self->task)->port,
                                  (vm_address_t) (self->address + offset),
                                  (vm_size_t) buf_size,
                                  (vm_address_t) buf,
                                  (mach_vm_size_t *) &buf_size);
+
+    if (kr != KERN_SUCCESS) {
+        handle_kern_rtn(kr);
+        return NULL;
+    }
 
     return PyString_FromStringAndSize((const char *) buf,
                                       (Py_ssize_t) buf_size);
@@ -125,7 +132,7 @@ kern_Region_dealloc(kern_RegionObj *self)
 static PyObject *
 kern_Region_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-    kern_RegionObj *self;
+    kern_RegionObj *self = NULL;
 
     self = (kern_RegionObj *) type->tp_alloc(type, 0);
 

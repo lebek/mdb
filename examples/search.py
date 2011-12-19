@@ -1,5 +1,5 @@
 from mdb.task import BasicTask
-
+from mdb.kern import KernelError
 
 def findAll(string, sub):
     end = len(string)
@@ -24,7 +24,6 @@ def clean(string):
 
     return s
 
-
 if __name__ == "__main__":
     from sys import argv
 
@@ -38,7 +37,11 @@ if __name__ == "__main__":
         print "Scanning region #%d @ 0x%0.2X of size %d..." % (
             pos, r.address, r.size)
 
-        data = r.read()
+        try:
+            data = r.read()
+        except KernelError:
+            continue
+
         for i in findAll(data, term):
             string = clean(data[(i-50):(i+50)])
             print " 0x%0.2X %s" % (r.address+i, string)
