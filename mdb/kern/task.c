@@ -206,14 +206,14 @@ kern_Task_basicInfo (kern_TaskObj *self)
         return NULL;
     }
 
-    return Py_BuildValue("(KKK(KK)(KK))",
-                         (uint64_t) info.suspend_count,
-                         (uint64_t) info.virtual_size,
-                         (uint64_t) info.resident_size,
-                         (uint64_t) info.user_time.seconds,
-                         (uint64_t) info.user_time.microseconds,
-                         (uint64_t) info.system_time.seconds,
-                         (uint64_t) info.system_time.microseconds);
+    return Py_BuildValue("{s:K,s:K,s:K,s:(K,K),s:(K,K)}",
+                         "suspend_count", info.suspend_count,
+                         "virtual_size", info.virtual_size,
+                         "resident_size", info.resident_size,
+                         "user_time", info.user_time.seconds,
+                         info.user_time.microseconds,
+                         "system_time", info.system_time.seconds,
+                         info.system_time.microseconds);
 }
 
 static void
