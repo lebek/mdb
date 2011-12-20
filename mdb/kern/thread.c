@@ -51,7 +51,7 @@ kern_Thread_getState (kern_ThreadObj *self, PyObject *args, PyObject *kwds)
     x86_thread_state64_t state64;
     x86_thread_state32_t state32;
 
-    PyObject *state_dict = NULL, *intval = NULL;
+    PyObject *stateDict = NULL, *iVal = NULL;
 
     /* Brute-force the arch.. */
 
@@ -61,15 +61,16 @@ kern_Thread_getState (kern_ThreadObj *self, PyObject *args, PyObject *kwds)
     kr = thread_get_state(self->port, flavor, (thread_state_t) &state64,
                           &count);
     if (kr == KERN_SUCCESS) {
-        state_dict = PyDict_New();
-        if (state_dict == NULL)
+        stateDict = PyDict_New();
+        if (stateDict == NULL)
             return PyErr_NoMemory();
 
-#define INSERT_KV(kv) do { intval = PyInt_FromLong((long) state64.__##kv); \
-        if (intval == NULL) \
+#define INSERT_KV(kv) do { \
+        iVal = PyLong_FromSsize_t((Py_ssize_t) state64.__##kv); \
+        if (iVal == NULL) \
             return PyErr_NoMemory(); \
-        PyDict_SetItemString(state_dict, #kv, intval); \
-        intval = NULL; } while (0)
+        PyDict_SetItemString(stateDict, #kv, iVal); \
+        iVal = NULL; } while (0)
 
         INSERT_KV(rax);
         INSERT_KV(rbx);
@@ -94,7 +95,7 @@ kern_Thread_getState (kern_ThreadObj *self, PyObject *args, PyObject *kwds)
         INSERT_KV(gs);
 #undef INSERT_KV
 
-        return state_dict;
+        return stateDict;
     }
 
     /* 32-bit? */
@@ -104,15 +105,15 @@ kern_Thread_getState (kern_ThreadObj *self, PyObject *args, PyObject *kwds)
                           &count);
 
     if (kr == KERN_SUCCESS) {
-        state_dict = PyDict_New();
-        if (state_dict == NULL)
+        stateDict = PyDict_New();
+        if (stateDict == NULL)
             return PyErr_NoMemory();
 
-#define INSERT_KV(kv) do { intval = PyInt_FromLong((long) state32.__##kv); \
-        if (intval == NULL) \
+#define INSERT_KV(kv) do { iVal = PyInt_FromLong((long) state32.__##kv); \
+        if (iVal == NULL) \
             return PyErr_NoMemory(); \
-        PyDict_SetItemString(state_dict, #kv, intval); \
-        intval = NULL; } while (0)
+        PyDict_SetItemString(stateDict, #kv, iVal); \
+        iVal = NULL; } while (0)
 
         INSERT_KV(eax);
         INSERT_KV(ebx);
@@ -132,7 +133,7 @@ kern_Thread_getState (kern_ThreadObj *self, PyObject *args, PyObject *kwds)
         INSERT_KV(gs);
 #undef INSERT_KV
 
-        return state_dict;
+        return stateDict;
     }
 
     /* Nothing worked, fail */
