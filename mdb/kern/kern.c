@@ -28,6 +28,7 @@
 
 #include "task.h"
 #include "region.h"
+#include "thread.h"
 #include "kern.h"
 
 PyObject *kern_Error,
@@ -53,14 +54,18 @@ initkern(void)
     if (PyType_Ready(&kern_RegionType) < 0)
         return;
 
+    if (PyType_Ready(&kern_ThreadType) < 0)
+        return;
+
     m = Py_InitModule3("mdb.kern", kern_methods,
                        "Kernel module.");
     Py_INCREF(&kern_TaskType);
     Py_INCREF(&kern_RegionType);
+    Py_INCREF(&kern_ThreadType);
 
     PyModule_AddObject(m, "Task", (PyObject *)&kern_TaskType);
     PyModule_AddObject(m, "Region", (PyObject *)&kern_RegionType);
-
+    PyModule_AddObject(m, "Thread", (PyObject *)&kern_ThreadType);
 
     /*
      * ADD_EXCEPTION(dict,name,base) expands to a correct Exception declaration,

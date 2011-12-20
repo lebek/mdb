@@ -33,6 +33,7 @@
 #include "util.h"
 #include "kern.h"
 #include "region.h"
+#include "thread.h"
 #include "task.h"
 
 
@@ -112,6 +113,69 @@ kern_Task_findRegion (kern_TaskObj *self, PyObject *args, PyObject *kwds)
     region->task = (PyObject *) self;
 
     return (PyObject *) region;
+}
+
+/*
+ * Get the task's list of threads.
+ *
+ * Arguments: None
+ * Returns: List of Thread objects
+ */
+static PyObject *
+kern_Task_getThreads (kern_TaskObj *self)
+{
+    kern_return_t kr;
+    thread_act_port_array_t thread_list;
+    mach_msg_type_number_t thread_count;
+
+    PyObject *threads = NULL;
+    Py_ssize_t threads_size = 0;
+    kern_ThreadObj *thread = NULL;
+
+    int i;
+
+    if (! self->attached) {
+        PyErr_SetNone(kern_NotAttachedError);
+        return NULL;
+    }
+
+    kr = task_threads(self->port, &thread_list, &thread_count);
+
+    if (kr != KERN_SUCCESS) {
+        handle_kern_rtn(kr);
+        return NULL;
+    }
+
+    threads = PyList_New((Py_ssize_t) 0);
+    if (threads == NULL)
+        return PyErr_NoMemory();
+
+    for (i = 0; i < thread_count; ++i) {
+        thread = PyObject_New(kern_ThreadObj, &kern_ThreadType);
+        if (thread == NULL)
+            goto error;
+
+        thread->port = thread_list[i];
+
+        Py_INCREF(self);
+        thread->task = (PyObject *) self;
+        if (PyList_Append(threads, (PyObject *) thread))
+            return NULL;
+
+        thread = NULL;
+    }
+
+    return threads;
+
+ error:
+    /* Decrement the reference count for previously allocated PyObjects */
+    threads_size = PyList_Size(threads);
+    for (i = 0; i < threads_size; ++i)
+        Py_DECREF(PyList_GetItem(threads, (Py_ssize_t) i));
+
+    Py_DECREF(threads);
+
+    return PyErr_NoMemory();
 }
 
 /*
@@ -195,9 +259,11 @@ static PyMemberDef kern_TaskMembers[] = {
 
 static PyMethodDef kern_TaskMethods[] = {
     {"attach", (PyCFunction)kern_Task_attach, METH_NOARGS,
-     "Attach to this task"},
+     "Attach to the task"},
     {"findRegion", (PyCFunction)kern_Task_findRegion, METH_KEYWORDS,
-     "Return memory region in this tasks address space"},
+     "Return memory region in the tasks address space"},
+    {"getThreads", (PyCFunction)kern_Task_getThreads, METH_NOARGS,
+     "Return the task's list of threads" },
     {"basicInfo", (PyCFunction)kern_Task_basicInfo, METH_NOARGS,
      "Return basic information about the task"},
     {NULL} /* Sentinel */
