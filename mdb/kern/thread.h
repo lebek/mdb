@@ -31,12 +31,23 @@
 
 #include "structmember.h"
 
+#define _KERN_THREAD_ARCH_UNKNOWN  0
+#define _KERN_THREAD_ARCH_X86      1
+#define _KERN_THREAD_ARCH_X86_64   2
+
 extern PyTypeObject kern_ThreadType;
 
 typedef struct {
     PyObject_HEAD
     PyObject *task;
     mach_port_t port;
+    int arch;
+    char paused;
 } kern_ThreadObj;
+
+typedef struct {
+    x86_thread_state64_t state64;
+    x86_thread_state32_t state32;
+} kern_multi_arch_tstate;
 
 #endif

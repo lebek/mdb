@@ -31,9 +31,52 @@
 #include <mach/mach_types.h>
 
 #include "util.h"
+#include "kern.h"
 #include "task.h"
 #include "thread.h"
 
+
+static int
+kern_thread_state (kern_ThreadObj *self, kern_multi_arch_tstate *multi_state)
+{
+    kern_return_t kr;
+
+    thread_state_flavor_t flavor;
+    mach_msg_type_number_t count;
+
+    switch (self->arch) {
+    case (_KERN_THREAD_ARCH_UNKNOWN):
+    case (_KERN_THREAD_ARCH_X86_64):
+        {
+            flavor = x86_THREAD_STATE64;
+            count = x86_THREAD_STATE64_COUNT;
+            kr = thread_get_state(self->port, flavor,
+                                  (thread_state_t) &(multi_state->state64),
+                                  &count);
+
+            if (self->arch != _KERN_THREAD_ARCH_X86_64) {
+                if (kr == KERN_SUCCESS) {
+                    self->arch = _KERN_THREAD_ARCH_X86_64;
+                    break;
+                }
+            } else { break; }
+        }
+
+    case (_KERN_THREAD_ARCH_X86):
+        {
+            flavor = x86_THREAD_STATE32;
+            count = x86_THREAD_STATE32_COUNT;
+            kr = thread_get_state(self->port, flavor,
+                                  (thread_state_t) &(multi_state->state32),
+                                  &count);
+
+            if (kr == KERN_SUCCESS && self->arch != _KERN_THREAD_ARCH_X86)
+                self->arch = _KERN_THREAD_ARCH_X86;
+        }
+    }
+
+    return kr;
+}
 
 /*
  * Get execution state (e.g. machine registers) for the thread
@@ -42,103 +85,208 @@
  * Returns:   Dictionary
  */
 static PyObject *
-kern_Thread_getState (kern_ThreadObj *self, PyObject *args, PyObject *kwds)
+kern_Thread_getState (kern_ThreadObj *self)
 {
     kern_return_t kr;
+    kern_multi_arch_tstate multi_state;
+
+    kr = kern_thread_state(self, &multi_state);
+
+    if (kr != KERN_SUCCESS) {
+        handle_kern_rtn(kr);
+        return NULL;
+    }
+
+    /* self->arch is always set by this point */
+
+    if (self->arch == _KERN_THREAD_ARCH_X86_64) {
+
+#define KV(kv) #kv, multi_state.state64.__##kv
+        return Py_BuildValue("{s:K,s:K,s:K,s:K,s:K,s:K,s:K,s:K,s:K,s:K,s:K,s:K,"
+                             "s:K,s:K,s:K,s:K,s:K,s:K,s:K,s:K,s:K}",
+                             KV(rax), KV(rbx), KV(rcx), KV(rdx), KV(rdi),
+                             KV(rsi), KV(rbp), KV(rsp), KV(r8), KV(r9), KV(r10),
+                             KV(r11), KV(r12), KV(r13), KV(r14), KV(r15),
+                             KV(rip), KV(rflags), KV(cs), KV(fs), KV(gs));
+#undef KV
+
+    } else {
+
+#define KV(kv) #kv, multi_state.state32.__##kv
+        return Py_BuildValue("{s:I,s:I,s:I,s:I,s:I,s:I,s:I,s:I,s:I,s:I,s:I,s:I,"
+                             "s:I,s:I,s:I,s:I}", KV(eax), KV(ebx), KV(ecx),
+                             KV(edx), KV(edi), KV(esi), KV(ebp), KV(esp),
+                             KV(ss), KV(eflags), KV(eip), KV(cs), KV(ds),
+                             KV(es), KV(fs), KV(gs));
+#undef KV
+
+    }
+}
+
+/*
+ * Set execution state (e.g. machine registers) for the thread. Should only be
+ * called while the thread is paused
+ *
+ * Arguments: Dictionary
+ * Returns:   None
+ */
+static PyObject *
+kern_Thread_setState (kern_ThreadObj *self, PyObject *args, PyObject *kwds)
+{
+    kern_return_t kr;
+    kern_multi_arch_tstate multi_state;
+    PyObject *stateDict = NULL, *key, *value;
+    char *reg;
+    uint64_t val64;
+    unsigned int val32;
+    Py_ssize_t pos = 0;
 
     thread_state_flavor_t flavor;
     mach_msg_type_number_t count;
-    x86_thread_state64_t state64;
-    x86_thread_state32_t state32;
 
-    PyObject *stateDict = NULL, *iVal = NULL;
+    static char *kwlist[] = {"state", NULL};
 
-    /* Brute-force the arch.. */
+    if (! PyArg_ParseTupleAndKeywords(args, kwds, "O!", kwlist,
+                                      &PyDict_Type, &stateDict))
+        return NULL;
 
-    /* 64-bit? */
-    flavor = x86_THREAD_STATE64;
-    count = x86_THREAD_STATE64_COUNT;
-    kr = thread_get_state(self->port, flavor, (thread_state_t) &state64,
-                          &count);
-    if (kr == KERN_SUCCESS) {
-        stateDict = PyDict_New();
-        if (stateDict == NULL)
-            return PyErr_NoMemory();
+    kr = kern_thread_state(self, &multi_state);
 
-#define INSERT_KV(kv) do { \
-        iVal = PyLong_FromSsize_t((Py_ssize_t) state64.__##kv); \
-        if (iVal == NULL) \
-            return PyErr_NoMemory(); \
-        PyDict_SetItemString(stateDict, #kv, iVal); \
-        iVal = NULL; } while (0)
-
-        INSERT_KV(rax);
-        INSERT_KV(rbx);
-        INSERT_KV(rcx);
-        INSERT_KV(rdx);
-        INSERT_KV(rdi);
-        INSERT_KV(rsi);
-        INSERT_KV(rbp);
-        INSERT_KV(rsp);
-        INSERT_KV(r8);
-        INSERT_KV(r9);
-        INSERT_KV(r10);
-        INSERT_KV(r11);
-        INSERT_KV(r12);
-        INSERT_KV(r13);
-        INSERT_KV(r14);
-        INSERT_KV(r15);
-        INSERT_KV(rip);
-        INSERT_KV(rflags);
-        INSERT_KV(cs);
-        INSERT_KV(fs);
-        INSERT_KV(gs);
-#undef INSERT_KV
-
-        return stateDict;
+    if (kr != KERN_SUCCESS) {
+        handle_kern_rtn(kr);
+        return NULL;
     }
 
-    /* 32-bit? */
-    flavor = x86_THREAD_STATE32;
-    count = x86_THREAD_STATE32_COUNT;
-    kr = thread_get_state(self->port, flavor, (thread_state_t) &state32,
-                          &count);
+    /* self->arch is always set by this point */
 
-    if (kr == KERN_SUCCESS) {
-        stateDict = PyDict_New();
-        if (stateDict == NULL)
-            return PyErr_NoMemory();
+    while (PyDict_Next(stateDict, &pos, &key, &value)) {
+        reg = PyString_AsString(key);
+        if (self->arch == _KERN_THREAD_ARCH_X86_64) {
+            val64 = (uint64_t) PyLong_AsSsize_t(value);
+            if (val64 == -1)
+                return NULL;
 
-#define INSERT_KV(kv) do { iVal = PyInt_FromLong((long) state32.__##kv); \
-        if (iVal == NULL) \
-            return PyErr_NoMemory(); \
-        PyDict_SetItemString(stateDict, #kv, iVal); \
-        iVal = NULL; } while (0)
+            if (!strcmp(reg, "rax")) multi_state.state64.__rax = val64;
+            else if (!strcmp(reg, "rax")) multi_state.state64.__rax = val64;
+            else if (!strcmp(reg, "rbx")) multi_state.state64.__rbx = val64;
+            else if (!strcmp(reg, "rcx")) multi_state.state64.__rcx = val64;
+            else if (!strcmp(reg, "rdx")) multi_state.state64.__rdx = val64;
+            else if (!strcmp(reg, "rdi")) multi_state.state64.__rdi = val64;
+            else if (!strcmp(reg, "rsi")) multi_state.state64.__rsi = val64;
+            else if (!strcmp(reg, "rbp")) multi_state.state64.__rbp = val64;
+            else if (!strcmp(reg, "rsp")) multi_state.state64.__rsp = val64;
+            else if (!strcmp(reg, "r8")) multi_state.state64.__r8 = val64;
+            else if (!strcmp(reg, "r9")) multi_state.state64.__r9 = val64;
+            else if (!strcmp(reg, "r10")) multi_state.state64.__r10 = val64;
+            else if (!strcmp(reg, "r11")) multi_state.state64.__r11 = val64;
+            else if (!strcmp(reg, "r12")) multi_state.state64.__r12 = val64;
+            else if (!strcmp(reg, "r13")) multi_state.state64.__r13 = val64;
+            else if (!strcmp(reg, "r14")) multi_state.state64.__r14 = val64;
+            else if (!strcmp(reg, "r15")) multi_state.state64.__r15 = val64;
+            else if (!strcmp(reg, "rip")) multi_state.state64.__rip = val64;
+            else if (!strcmp(reg, "rflags")) multi_state.state64.__rflags = val64;
+            else if (!strcmp(reg, "cs")) multi_state.state64.__cs = val64;
+            else if (!strcmp(reg, "fs")) multi_state.state64.__fs = val64;
+            else if (!strcmp(reg, "gs")) multi_state.state64.__gs = val64;
+        } else {
+            val32 = (unsigned int) PyInt_AsSsize_t(value);
 
-        INSERT_KV(eax);
-        INSERT_KV(ebx);
-        INSERT_KV(ecx);
-        INSERT_KV(edx);
-        INSERT_KV(edi);
-        INSERT_KV(esi);
-        INSERT_KV(ebp);
-        INSERT_KV(esp);
-        INSERT_KV(ss);
-        INSERT_KV(eflags);
-        INSERT_KV(eip);
-        INSERT_KV(cs);
-        INSERT_KV(ds);
-        INSERT_KV(es);
-        INSERT_KV(fs);
-        INSERT_KV(gs);
-#undef INSERT_KV
-
-        return stateDict;
+            if (!strcmp(reg, "eax")) multi_state.state32.__eax = val32;
+            else if (!strcmp(reg, "ebx")) multi_state.state32.__ebx = val32;
+            else if (!strcmp(reg, "ecx")) multi_state.state32.__ecx = val32;
+            else if (!strcmp(reg, "edx")) multi_state.state32.__edx = val32;
+            else if (!strcmp(reg, "edi")) multi_state.state32.__edi = val32;
+            else if (!strcmp(reg, "esi")) multi_state.state32.__esi = val32;
+            else if (!strcmp(reg, "ebp")) multi_state.state32.__ebp = val32;
+            else if (!strcmp(reg, "esp")) multi_state.state32.__esp = val32;
+            else if (!strcmp(reg, "ss")) multi_state.state32.__ss = val32;
+            else if (!strcmp(reg, "eflags")) multi_state.state32.__eflags = val32;
+            else if (!strcmp(reg, "eip")) multi_state.state32.__eip = val32;
+            else if (!strcmp(reg, "cs")) multi_state.state32.__cs = val32;
+            else if (!strcmp(reg, "ds")) multi_state.state32.__ds = val32;
+            else if (!strcmp(reg, "es")) multi_state.state32.__es = val32;
+            else if (!strcmp(reg, "fs")) multi_state.state32.__fs = val32;
+            else if (!strcmp(reg, "gs")) multi_state.state32.__gs = val32;
+        }
     }
 
-    /* Nothing worked, fail */
-    handle_kern_rtn(kr);
-    return NULL;
+    if (self->arch == _KERN_THREAD_ARCH_X86_64) {
+        flavor = x86_THREAD_STATE64;
+        count = x86_THREAD_STATE64_COUNT;
+        kr = thread_set_state(self->port, flavor,
+                              (thread_state_t) &(multi_state.state64), count);
+    } else {
+        flavor = x86_THREAD_STATE32;
+        count = x86_THREAD_STATE32_COUNT;
+        kr = thread_set_state(self->port, flavor,
+                              (thread_state_t) &(multi_state.state32), count);
+    }
+
+    if (kr != KERN_SUCCESS) {
+        handle_kern_rtn(kr);
+        return NULL;
+    }
+
+    return Py_None;
+}
+
+/*
+ * Pause the thread, making it safe for state modification. For a complete
+ * explanation see the thread_abort_safely man page. May not be called while
+ * already paused
+ *
+ * Arguments: None
+ * Returns:   None
+ */
+static PyObject *
+kern_Thread_pause (kern_ThreadObj *self)
+{
+    kern_return_t kr;
+
+    if (self->paused) {
+        PyErr_SetNone(kern_AlreadyPausedError);
+        return NULL;
+    }
+
+    if ( (kr = thread_suspend(self->port)) != KERN_SUCCESS) {
+        handle_kern_rtn(kr);
+        return NULL;
+    }
+
+    if ( (kr = thread_abort_safely(self->port)) != KERN_SUCCESS) {
+        handle_kern_rtn(kr);
+        return NULL;
+    }
+
+    self->paused = 1;
+
+    return Py_None;
+}
+
+/*
+ * Resume the thread. May only be called while paused
+ *
+ * Arguments: None
+ * Returns:   None
+ */
+static PyObject *
+kern_Thread_resume (kern_ThreadObj *self)
+{
+    kern_return_t kr;
+
+    if (! self->paused) {
+        PyErr_SetNone(kern_AlreadyRunningError);
+        return NULL;
+    }
+
+    if ( (kr = thread_resume(self->port)) != KERN_SUCCESS) {
+        handle_kern_rtn(kr);
+        return NULL;
+    }
+
+    self->paused = 0;
+
+    return Py_None;
 }
 
 static void
@@ -156,6 +304,8 @@ kern_Thread_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
     self = (kern_ThreadObj *) type->tp_alloc(type, 0);
 
     if (self != NULL) {
+        self->arch = _KERN_THREAD_ARCH_UNKNOWN;
+        self->paused = 0;
         self->task = Py_None;
         if (self->task == NULL) {
             Py_DECREF(self);
@@ -189,12 +339,20 @@ kern_Thread_init (kern_ThreadObj *self, PyObject *args, PyObject *kwds)
 static PyMemberDef kern_ThreadMembers[] = {
     {"task", T_OBJECT_EX, offsetof(kern_ThreadObj, task), 0,
      "Task containing this thread"},
+    {"paused", T_BOOL, offsetof(kern_ThreadObj, paused), 0,
+     "Pause status"},
     {NULL} /* Sentinel */
 };
 
 static PyMethodDef kern_ThreadMethods[] = {
     {"getState", (PyCFunction)kern_Thread_getState, METH_NOARGS,
      "Return execution state for the thread"},
+    {"setState", (PyCFunction)kern_Thread_setState, METH_KEYWORDS,
+     "Set the execution state for the thread"},
+    {"pause", (PyCFunction)kern_Thread_pause, METH_NOARGS,
+     "Pause the thread"},
+    {"resume", (PyCFunction)kern_Thread_resume, METH_NOARGS,
+     "Resume the thread"},
     {NULL} /* Sentinel */
 };
 

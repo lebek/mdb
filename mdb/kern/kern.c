@@ -33,7 +33,9 @@
 
 PyObject *kern_Error,
          *kern_NotAttachedError,
-         *kern_KernelError;
+         *kern_KernelError,
+         *kern_AlreadyRunningError,
+         *kern_AlreadyPausedError;
 
 static PyMethodDef kern_methods[] = {
 	{ NULL } /* Sentinel */
@@ -94,6 +96,8 @@ initkern(void)
 
     ADD_EXCEPTION(NotAttachedError, kern_Error);
     ADD_EXCEPTION(KernelError, kern_Error);
+    ADD_EXCEPTION(AlreadyRunningError, kern_Error);
+    ADD_EXCEPTION(AlreadyPausedError, kern_Error);
 #undef ADD_EXCEPTION
 
 }

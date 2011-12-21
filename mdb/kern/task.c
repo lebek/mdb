@@ -156,6 +156,8 @@ kern_Task_getThreads (kern_TaskObj *self)
             goto error;
 
         thread->port = thread_list[i];
+        thread->arch = _KERN_THREAD_ARCH_UNKNOWN;
+        thread->paused = 0;
 
         Py_INCREF(self);
         thread->task = (PyObject *) self;
