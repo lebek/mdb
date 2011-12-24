@@ -30,7 +30,6 @@
 #include <mach/kern_return.h>
 
 void kern_handle_kr(kern_return_t kr);
-#define handle_kern_rtn kern_handle_kr;
 
 #define KERN_ERROR(kr) do { kern_handle_kr(kr); \
         return NULL; } while (0)
