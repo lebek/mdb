@@ -149,10 +149,6 @@ kern_Region_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 
         Py_INCREF(Py_None);
         self->task = Py_None;
-        if (self->task == NULL) {
-            Py_DECREF(self);
-            return NULL;
-        }
     }
 
     return (PyObject *) self;
