@@ -129,7 +129,7 @@ kern_Task_findRegion (kern_TaskObj *self, PyObject *args, PyObject *kwds)
  * Get the task's list of threads.
  *
  * Arguments: None
- * Returns: List of Thread objects
+ * Returns:   List of Thread objects
  */
 static PyObject *
 kern_Task_getThreads (kern_TaskObj *self)
@@ -195,8 +195,8 @@ kern_Task_getThreads (kern_TaskObj *self)
  * number of resident pages
  *
  * Arguments: None
- * Returns:   (suspend_count, virtual_size, resident_size, user_time,
- *             system_time)
+ * Returns:   {suspend_count, virtual_size, resident_size, user_time,
+ *             system_time}
  */
 static PyObject *
 kern_Task_basicInfo (kern_TaskObj *self)
@@ -228,6 +228,12 @@ kern_Task_basicInfo (kern_TaskObj *self)
                          info.system_time.microseconds);
 }
 
+/*
+ * Poll the task for events (e.g. thread exception)
+ *
+ * Arguments: None
+ * Returns:   {type, thread}
+ */
 static PyObject *
 kern_Task_poll (kern_TaskObj *self)
 {

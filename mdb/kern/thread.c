@@ -82,7 +82,7 @@ kern_thread_state (kern_ThreadObj *self, kern_multi_arch_tstate *multi_state)
  * Get execution state (e.g. machine registers) for the thread
  *
  * Arguments: None
- * Returns:   Dictionary
+ * Returns:   Dictionary of registers
  */
 static PyObject *
 kern_Thread_getState (kern_ThreadObj *self)
