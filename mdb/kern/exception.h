@@ -29,7 +29,6 @@
 
 #include <mach/mach_types.h>
 
-
 typedef struct {
     mach_msg_header_t head;
     char data[1024];

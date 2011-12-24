@@ -91,11 +91,7 @@ kern_Thread_getState (kern_ThreadObj *self)
     kern_multi_arch_tstate multi_state;
 
     kr = kern_thread_state(self, &multi_state);
-
-    if (kr != KERN_SUCCESS) {
-        handle_kern_rtn(kr);
-        return NULL;
-    }
+    CHECK_KR(kr);
 
     /* self->arch is always set by this point */
 
@@ -152,11 +148,7 @@ kern_Thread_setState (kern_ThreadObj *self, PyObject *args, PyObject *kwds)
         return NULL;
 
     kr = kern_thread_state(self, &multi_state);
-
-    if (kr != KERN_SUCCESS) {
-        handle_kern_rtn(kr);
-        return NULL;
-    }
+    CHECK_KR(kr);
 
     /* self->arch is always set by this point */
 
@@ -223,10 +215,7 @@ kern_Thread_setState (kern_ThreadObj *self, PyObject *args, PyObject *kwds)
                               (thread_state_t) &(multi_state.state32), count);
     }
 
-    if (kr != KERN_SUCCESS) {
-        handle_kern_rtn(kr);
-        return NULL;
-    }
+    CHECK_KR(kr);
 
     Py_RETURN_NONE;
 }
@@ -249,15 +238,11 @@ kern_Thread_pause (kern_ThreadObj *self)
         return NULL;
     }
 
-    if ( (kr = thread_suspend(self->port)) != KERN_SUCCESS) {
-        handle_kern_rtn(kr);
-        return NULL;
-    }
+    kr = thread_suspend(self->port);
+    CHECK_KR(kr);
 
-    if ( (kr = thread_abort_safely(self->port)) != KERN_SUCCESS) {
-        handle_kern_rtn(kr);
-        return NULL;
-    }
+    kr = thread_abort_safely(self->port);
+    CHECK_KR(kr);
 
     self->paused = 1;
 
@@ -280,10 +265,8 @@ kern_Thread_resume (kern_ThreadObj *self)
         return NULL;
     }
 
-    if ( (kr = thread_resume(self->port)) != KERN_SUCCESS) {
-        handle_kern_rtn(kr);
-        return NULL;
-    }
+    kr = thread_resume(self->port);
+    CHECK_KR(kr);
 
     self->paused = 0;
 

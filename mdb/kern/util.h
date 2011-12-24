@@ -29,9 +29,12 @@
 
 #include <mach/kern_return.h>
 
-void handle_kern_rtn(kern_return_t kr);
+void kern_handle_kr(kern_return_t kr);
+#define handle_kern_rtn kern_handle_kr;
 
-#define KERN_ERROR(kr) do { handle_kern_rtn(kr); \
+#define KERN_ERROR(kr) do { kern_handle_kr(kr); \
         return NULL; } while (0)
+
+#define CHECK_KR(kr) do { if (kr != KERN_SUCCESS) KERN_ERROR(kr); } while (0)
 
 #endif

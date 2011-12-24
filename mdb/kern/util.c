@@ -30,7 +30,7 @@
 #include "util.h"
 
 void
-handle_kern_rtn(kern_return_t kr)
+kern_handle_kr(kern_return_t kr)
 {
     static struct {
         kern_return_t code;

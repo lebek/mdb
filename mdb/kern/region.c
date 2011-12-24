@@ -72,11 +72,7 @@ kern_Region_read (kern_RegionObj *self, PyObject *args, PyObject *kwds)
                                  (vm_size_t) buf_size,
                                  (vm_address_t) buf,
                                  (mach_vm_size_t *) &buf_size);
-
-    if (kr != KERN_SUCCESS) {
-        handle_kern_rtn(kr);
-        return NULL;
-    }
+    CHECK_KR(kr);
 
     return PyString_FromStringAndSize((const char *) buf,
                                       (Py_ssize_t) buf_size);
@@ -113,11 +109,7 @@ kern_Region_write (kern_RegionObj *self, PyObject *args, PyObject *kwds)
                         self->address + offset,
                         (pointer_t) PyString_AsString(data),
                         (mach_msg_type_number_t) data_size);
-
-    if (kr != KERN_SUCCESS) {
-        handle_kern_rtn(kr);
-        return NULL;
-    }
+    CHECK_KR(kr);
 
     Py_RETURN_NONE;
 }

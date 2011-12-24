@@ -54,15 +54,13 @@ kern_Task_attach (kern_TaskObj* self, PyObject *args, PyObject *kwds)
         return NULL;
     }
 
-    if ( (kr = task_for_pid(mach_task_self(),
-                            (pid_t) self->pid,
-                            &(self->port))) != KERN_SUCCESS)
-        KERN_ERROR(kr);
+    kr = task_for_pid(mach_task_self(), (pid_t) self->pid,
+                      &(self->port));
+    CHECK_KR(kr);
 
     /* Hook-up special exception port */
-    if ( (kr = kern_excserv_init(self->port,
-                                 &(self->exc_port))) != KERN_SUCCESS)
-        KERN_ERROR(kr);
+    kr = kern_excserv_init(self->port, &(self->exc_port));
+    CHECK_KR(kr);
 
     self->attached = 1;
 
@@ -150,11 +148,7 @@ kern_Task_getThreads (kern_TaskObj *self)
     }
 
     kr = task_threads(self->port, &thread_list, &thread_count);
-
-    if (kr != KERN_SUCCESS) {
-        handle_kern_rtn(kr);
-        return NULL;
-    }
+    CHECK_KR(kr);
 
     threads = PyList_New((Py_ssize_t) 0);
     if (threads == NULL)
@@ -212,11 +206,7 @@ kern_Task_basicInfo (kern_TaskObj *self)
 
     kr  = task_info(self->port, TASK_BASIC_INFO_64, (task_info_t) &info,
                     &info_count);
-
-    if (kr != KERN_SUCCESS) {
-        handle_kern_rtn(kr);
-        return NULL;
-    }
+    CHECK_KR(kr);
 
     return Py_BuildValue("{s:K,s:K,s:K,s:(K,K),s:(K,K)}",
                          "suspend_count", info.suspend_count,
