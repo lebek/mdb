@@ -127,7 +127,8 @@ kern_Thread_getState (kern_ThreadObj *self)
  * Set execution state (e.g. machine registers) for the thread. Should only be
  * called while the thread is paused
  *
- * Arguments: Dictionary
+ * Arguments: state - dictionary of register-value pairs
+ *                    e.g. { "eip" : 0x41414141 }
  * Returns:   None
  */
 static PyObject *
@@ -275,7 +276,7 @@ kern_Thread_resume (kern_ThreadObj *self)
     kern_return_t kr;
 
     if (! self->paused) {
-        PyErr_SetNone(kern_AlreadyRunningError);
+        PyErr_SetNone(kern_NotPausedError);
         return NULL;
     }
 

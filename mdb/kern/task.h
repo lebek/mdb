@@ -38,6 +38,7 @@ typedef struct {
     int pid;
     char attached;
     mach_port_t port;
+    mach_port_t exc_port;
 } kern_TaskObj;
 
 #endif

@@ -24,32 +24,32 @@
  * SUCH DAMAGE.
  */
 
-#ifndef _KERN_THREAD_H
-#define _KERN_THREAD_H
+#ifndef _KERN_EXCEPTION_H
+#define _KERN_EXCEPTION_H
 
 #include <mach/mach_types.h>
 
-#include "structmember.h"
-
-#include "exception.h"
-
-#define _KERN_THREAD_ARCH_UNKNOWN  0
-#define _KERN_THREAD_ARCH_X86      1
-#define _KERN_THREAD_ARCH_X86_64   2
-
-extern PyTypeObject kern_ThreadType;
 
 typedef struct {
-    PyObject_HEAD
-    PyObject *task;
-    mach_port_t port;
-    int arch;
-    char paused;
-} kern_ThreadObj;
+    mach_msg_header_t head;
+    char data[1024];
+} kern_exc_request;
 
 typedef struct {
-    x86_thread_state64_t state64;
-    x86_thread_state32_t state32;
-} kern_multi_arch_tstate;
+    mach_msg_header_t head;
+    char data[1024];
+} kern_exc_reply;
+
+typedef struct {
+    mach_port_t thread;
+    exception_type_t type;
+} kern_exc_event;
+
+kern_return_t kern_excserv_init (mach_port_t task, mach_port_t *exc_port);
+
+int kern_excserv_poll (mach_port_t exc_port, int milliseconds,
+                       kern_exc_event *event);
+
+const char *kern_exc_string (unsigned int i);
 
 #endif

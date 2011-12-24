@@ -30,9 +30,10 @@
 #include <Python.h>
 
 extern PyObject *kern_Error,
+                *kern_AlreadyAttachedError,
                 *kern_NotAttachedError,
                 *kern_KernelError,
-                *kern_AlreadyRunningError,
-                *kern_AlreadyPausedError;
+                *kern_AlreadyPausedError,
+                *kern_NotPausedError;
 
 #endif

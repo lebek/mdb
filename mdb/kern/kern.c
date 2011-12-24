@@ -31,11 +31,13 @@
 #include "thread.h"
 #include "kern.h"
 
+
 PyObject *kern_Error,
+         *kern_AlreadyAttachedError,
          *kern_NotAttachedError,
          *kern_KernelError,
-         *kern_AlreadyRunningError,
-         *kern_AlreadyPausedError;
+         *kern_AlreadyPausedError,
+         *kern_NotPausedError;
 
 static PyMethodDef kern_methods[] = {
 	{ NULL } /* Sentinel */
@@ -94,10 +96,11 @@ initkern(void)
     if (PyModule_AddObject(m, "Error", kern_Error) != 0)
         return;
 
+    ADD_EXCEPTION(AlreadyAttachedError, kern_Error);
     ADD_EXCEPTION(NotAttachedError, kern_Error);
     ADD_EXCEPTION(KernelError, kern_Error);
-    ADD_EXCEPTION(AlreadyRunningError, kern_Error);
     ADD_EXCEPTION(AlreadyPausedError, kern_Error);
+    ADD_EXCEPTION(NotPausedError, kern_Error);
 #undef ADD_EXCEPTION
 
 }

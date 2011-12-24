@@ -31,4 +31,7 @@
 
 void handle_kern_rtn(kern_return_t kr);
 
+#define KERN_ERROR(kr) do { handle_kern_rtn(kr); \
+        return NULL; } while (0)
+
 #endif

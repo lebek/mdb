@@ -34,6 +34,7 @@
 #include "kern.h"
 #include "region.h"
 #include "thread.h"
+#include "exception.h"
 #include "task.h"
 
 
@@ -44,19 +45,28 @@
  * Returns:   None
  */
 static PyObject *
-kern_Task_attach (kern_TaskObj* self)
+kern_Task_attach (kern_TaskObj* self, PyObject *args, PyObject *kwds)
 {
-    kern_return_t kr = task_for_pid(mach_task_self(), (pid_t) self->pid,
-                                    &(self->port));
+    kern_return_t kr;
 
-    if (kr != KERN_SUCCESS) {
-        handle_kern_rtn(kr);
+    if (self->attached) {
+        PyErr_SetNone(kern_AlreadyAttachedError);
         return NULL;
     }
 
+    if ( (kr = task_for_pid(mach_task_self(),
+                            (pid_t) self->pid,
+                            &(self->port))) != KERN_SUCCESS)
+        KERN_ERROR(kr);
+
+    /* Hook-up special exception port */
+    if ( (kr = kern_excserv_init(self->port,
+                                 &(self->exc_port))) != KERN_SUCCESS)
+        KERN_ERROR(kr);
+
     self->attached = 1;
 
-    return Py_None;
+    Py_RETURN_NONE;
 }
 
 /*
@@ -93,7 +103,7 @@ kern_Task_findRegion (kern_TaskObj *self, PyObject *args, PyObject *kwds)
                       (vm_region_info_t) &info, &info_count, &object);
 
     if (kr == KERN_INVALID_ADDRESS)
-        return Py_None;
+        Py_RETURN_NONE;
 
     region = PyObject_New(kern_RegionObj, &kern_RegionType);
     if (region == NULL)
@@ -218,6 +228,30 @@ kern_Task_basicInfo (kern_TaskObj *self)
                          info.system_time.microseconds);
 }
 
+static PyObject *
+kern_Task_poll (kern_TaskObj *self)
+{
+    kern_exc_event event;
+    kern_ThreadObj *thread = NULL;
+
+    if (kern_excserv_poll(self->exc_port, 100, &event) <= 0)
+        Py_RETURN_NONE;
+
+    thread = PyObject_New(kern_ThreadObj, &kern_ThreadType);
+    if (thread == NULL)
+        return PyErr_NoMemory();
+
+    thread->port = event.thread;
+    thread->arch = _KERN_THREAD_ARCH_UNKNOWN;
+    thread->paused = 1;
+
+    Py_INCREF(self);
+    thread->task = (PyObject *) self;
+
+    return Py_BuildValue("{s:O,s:s}", "thread", (PyObject *) thread,
+                         "type", kern_exc_string(event.type));
+}
+
 static void
 kern_Task_dealloc (kern_TaskObj* self)
 {
@@ -262,6 +296,8 @@ static PyMemberDef kern_TaskMembers[] = {
 static PyMethodDef kern_TaskMethods[] = {
     {"attach", (PyCFunction)kern_Task_attach, METH_NOARGS,
      "Attach to the task"},
+    {"poll", (PyCFunction)kern_Task_poll, METH_NOARGS,
+     "Poll the task for events"},
     {"findRegion", (PyCFunction)kern_Task_findRegion, METH_KEYWORDS,
      "Return memory region in the tasks address space"},
     {"getThreads", (PyCFunction)kern_Task_getThreads, METH_NOARGS,
