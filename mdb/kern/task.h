@@ -39,6 +39,7 @@ typedef struct {
     char attached;
     mach_port_t port;
     mach_port_t exc_port;
+    PyObject *vm;
 } kern_TaskObj;
 
 #endif

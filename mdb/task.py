@@ -38,4 +38,4 @@ class BasicTask(Task):
                 break
 
             yield region
-            i = region.address + region.size
+            i = region['address'] + region['size']

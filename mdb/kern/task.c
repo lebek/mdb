@@ -32,7 +32,7 @@
 
 #include "util.h"
 #include "kern.h"
-#include "region.h"
+#include "memory.h"
 #include "thread.h"
 #include "exception.h"
 #include "task.h"
@@ -48,6 +48,7 @@ static PyObject *
 kern_Task_attach (kern_TaskObj* self, PyObject *args, PyObject *kwds)
 {
     kern_return_t kr;
+    kern_MemoryObj *vm = NULL;
 
     if (self->attached) {
         PyErr_SetNone(kern_AlreadyAttachedError);
@@ -62,6 +63,18 @@ kern_Task_attach (kern_TaskObj* self, PyObject *args, PyObject *kwds)
     kr = kern_excserv_init(self->port, &(self->exc_port));
     CHECK_KR(kr);
 
+    /* Initialize VM attr */
+    vm = PyObject_New(kern_MemoryObj, &kern_MemoryType);
+    if (vm == NULL)
+        return NULL;
+
+    Py_INCREF(self);
+    vm->task = (PyObject *) self;
+    vm->address = 0;
+    vm->size = UINT64_MAX;
+
+    self->vm = (PyObject *) vm;
+
     self->attached = 1;
 
     Py_RETURN_NONE;
@@ -71,7 +84,7 @@ kern_Task_attach (kern_TaskObj* self, PyObject *args, PyObject *kwds)
  * Find a memory region in the task's address space
  *
  * Arguments: address - the address at which to start looking for a region
- * Returns:   Region object, or None if no region is found
+ * Returns:   Dictionary, or None if no region is found
  */
 static PyObject *
 kern_Task_findRegion (kern_TaskObj *self, PyObject *args, PyObject *kwds)
@@ -83,8 +96,6 @@ kern_Task_findRegion (kern_TaskObj *self, PyObject *args, PyObject *kwds)
     mach_port_t object;
     vm_region_basic_info_data_64_t info;
     mach_msg_type_number_t info_count = VM_REGION_BASIC_INFO_COUNT_64;
-
-    kern_RegionObj *region = NULL;
 
     static char *kwlist[] = {"address", NULL};
 
@@ -103,24 +114,13 @@ kern_Task_findRegion (kern_TaskObj *self, PyObject *args, PyObject *kwds)
     if (kr == KERN_INVALID_ADDRESS)
         Py_RETURN_NONE;
 
-    region = PyObject_New(kern_RegionObj, &kern_RegionType);
-    if (region == NULL)
-        return NULL;
-
-    region->address = address;
-    region->size = size;
-
-    region->protection = (int) info.protection;
-    region->maxProtection = (int) info.max_protection;
-    region->inheritance = (int) info.inheritance;
-    region->shared = (char) info.shared;
-    region->reserved = (char) info.reserved;
-    region->behavior = (int) info.behavior;
-
-    Py_INCREF(self);
-    region->task = (PyObject *) self;
-
-    return (PyObject *) region;
+#define KV(kv) #kv, info.kv
+    return Py_BuildValue("{s:K,s:K,s:i,s:i,s:i,s:i,s:i,s:i}",
+                         "address", address, "size", size,
+                         KV(protection), KV(max_protection),
+                         KV(inheritance), KV(shared), KV(reserved),
+                         KV(behavior));
+#undef KV
 }
 
 /*
@@ -251,6 +251,7 @@ kern_Task_poll (kern_TaskObj *self)
 static void
 kern_Task_dealloc (kern_TaskObj* self)
 {
+    Py_XDECREF(self->vm);
     self->ob_type->tp_free( (PyObject*) self);
 }
 
@@ -264,6 +265,9 @@ kern_Task_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
     if (self != NULL) {
         self->pid = 0;
         self->attached = 0;
+
+        Py_INCREF(Py_None);
+        self->vm = Py_None;
     }
 
     return (PyObject *) self;
@@ -286,6 +290,8 @@ static PyMemberDef kern_TaskMembers[] = {
      "Task pid"},
     {"attached", T_BOOL, offsetof(kern_TaskObj, attached), 0,
      "Attachment status"},
+    {"vm", T_OBJECT_EX, offsetof(kern_TaskObj, vm), 0,
+     "Task virtual memory"},
     {NULL} /* Sentinel */
 };
 

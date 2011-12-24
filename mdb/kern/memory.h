@@ -24,27 +24,20 @@
  * SUCH DAMAGE.
  */
 
-#ifndef _KERN_REGION_H
-#define _KERN_REGION_H
+#ifndef _KERN_MEMORY_H
+#define _KERN_MEMORY_H
 
 #include <mach/mach_types.h>
 
 #include "structmember.h"
 
-extern PyTypeObject kern_RegionType;
+extern PyTypeObject kern_MemoryType;
 
 typedef struct {
     PyObject_HEAD
     uint64_t address;
     uint64_t size;
     PyObject *task;
-
-	int protection;
-	int maxProtection;
-	int inheritance;
-	char shared;
-	char reserved;
-	int behavior;
-} kern_RegionObj;
+} kern_MemoryObj;
 
 #endif

@@ -35,13 +35,13 @@ if __name__ == "__main__":
     print t.basicInfo()
     for pos, r in enumerate(t.iterRegions()):
         print "Scanning region #%d @ 0x%0.2X of size %d..." % (
-            pos, r.address, r.size)
+            pos, r['address'], r['size'])
 
         try:
-            data = r.read()
+            data = t.vm.read(r['address'], r['size'])
         except KernelError:
             continue
 
         for i in findAll(data, term):
             string = clean(data[(i-50):(i+50)])
-            print " 0x%0.2X %s" % (r.address+i, string)
+            print " 0x%0.2X %s" % (r['address']+i, string)
