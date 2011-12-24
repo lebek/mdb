@@ -228,7 +228,7 @@ kern_Thread_setState (kern_ThreadObj *self, PyObject *args, PyObject *kwds)
         return NULL;
     }
 
-    return Py_None;
+    Py_RETURN_NONE;
 }
 
 /*
@@ -261,7 +261,7 @@ kern_Thread_pause (kern_ThreadObj *self)
 
     self->paused = 1;
 
-    return Py_None;
+    Py_RETURN_NONE;
 }
 
 /*
@@ -287,7 +287,7 @@ kern_Thread_resume (kern_ThreadObj *self)
 
     self->paused = 0;
 
-    return Py_None;
+    Py_RETURN_NONE;
 }
 
 static void

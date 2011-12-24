@@ -119,7 +119,7 @@ kern_Region_write (kern_RegionObj *self, PyObject *args, PyObject *kwds)
         return NULL;
     }
 
-    return Py_None;
+    Py_RETURN_NONE;
 }
 
 static void
@@ -147,6 +147,7 @@ kern_Region_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
         self->reserved = 0;
         self->behavior = 0;
 
+        Py_INCREF(Py_None);
         self->task = Py_None;
         if (self->task == NULL) {
             Py_DECREF(self);
